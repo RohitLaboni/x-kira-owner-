@@ -37,7 +37,7 @@ async function isBlocked(number) {
 /**
  * Create a pairing session (temporary connection for QR/pairing code only)
  */
-async function connector(Num, res) {
+/*async function connector(Num, res) {
   const baileys = await import("baileys");
   const {
     default: makeWASocket,
@@ -63,12 +63,13 @@ async function connector(Num, res) {
       ),
     },
     logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-    browser: Browsers.macOS("Opera"),
+    //browser: Browsers.macOS("Opera"),
+    browser: ["KIRA iPhone", "Safari", "17.2"],
     printQRInTerminal: false,
   });
 
   if (!session.authState.creds.registered) {
-    await delay(1500);
+    await delay(3000);
     Num = Num.replace(/[^0-9]/g, "");
 
     try {
@@ -154,9 +155,7 @@ async function connector(Num, res) {
   });
 }
 
-/**
- * Reconnect pairing session if needed
- */
+
 function reconn(reason, Num, res, DisconnectReason) {
   if (
     [
@@ -176,7 +175,158 @@ function reconn(reason, Num, res, DisconnectReason) {
       `⛔ Not reconnecting pairing session for ${Num} (reason: ${reason})`
     );
   }
+}*/
+
+async function connector(Num, res) {
+  const sessionDir = path.join(__dirname, "sessions", Num);
+  await fs.ensureDir(sessionDir);
+
+  let session = null;
+  let cleanupDone = false;
+
+  const cleanup = async () => {
+    if (cleanupDone) return;
+    cleanupDone = true;
+
+    if (session) {
+      session.end(new Error("Cleanup"));
+      session = null;
+    }
+  };
+
+  try {
+    const baileys = await import("baileys");
+    const {
+      default: makeWASocket,
+      useMultiFileAuthState,
+      DisconnectReason,
+      delay,
+      Browsers,
+      makeCacheableSignalKeyStore,
+    } = baileys;
+
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+
+    session = makeWASocket({
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(
+          state.keys,
+          pino({ level: "fatal" }).child({ level: "fatal" })
+        ),
+      },
+      logger: pino({ level: "fatal" }).child({ level: "fatal" }),
+      browser: Browsers.macOS("Arc"),
+      printQRInTerminal: false,
+    });
+
+    if (!session.authState.creds.registered) {
+      await delay(3000);
+      Num = Num.replace(/[^0-9]/g, "");
+
+      try {
+        const code = await session.requestPairingCode(Num);
+        console.log(`📱 Pairing code for ${Num}: ${code}`);
+
+        if (!res.headersSent) {
+          res.send({
+            status: "success",
+            code: code?.match(/.{1,4}/g)?.join("-") || code,
+            number: Num,
+            message: "Enter this code in WhatsApp: Link a Device",
+          });
+        }
+      } catch (err) {
+        console.error(`❌ Failed to get pairing code for ${Num}:`, err);
+
+        if (!res.headersSent) {
+          res.status(500).send({
+            status: "error",
+            message: "Failed to generate pairing code",
+            error: err.message,
+          });
+        }
+
+        await cleanup();
+        return;
+      }
+    }
+
+    session.ev.on("creds.update", async () => {
+      try {
+        await saveCreds();
+        console.log(`✅ Credentials saved for ${Num}`);
+      } catch (err) {
+        console.error(`❌ Failed to save credentials for ${Num}:`, err);
+      }
+    });
+
+    session.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect } = update;
+
+      if (connection === "open") {
+        console.log(`✅ Pairing successful for ${Num}`);
+
+        const release = await mutex.acquire();
+        try {
+          if (manager.isConnected(Num) || manager.isConnecting(Num)) {
+            console.log(`⚠️ ${Num} is already connected, skipping startBot`);
+            await cleanup();
+            return;
+          }
+
+          console.log(`🔄 Closing pairing session for ${Num}...`);
+          await delay(2000);
+          await cleanup();
+          await delay(3000);
+
+          console.log(`🚀 Starting main bot for ${Num}...`);
+          await startBot(Num);
+        } catch (err) {
+          console.error(`❌ Failed to start bot for ${Num}:`, err.message);
+        } finally {
+          release();
+        }
+      } else if (connection === "close") {
+        const reason = lastDisconnect?.error?.output?.statusCode;
+        console.log(`❌ Pairing session closed for ${Num}, reason: ${reason}`);
+        await cleanup();
+        reconn(reason, Num, res, DisconnectReason);
+      }
+    });
+  } catch (err) {
+    console.error(`❌ Error in connector for ${Num}:`, err);
+    await cleanup();
+
+    if (!res.headersSent) {
+      res.status(500).send({
+        status: "error",
+        message: "Connection failed",
+        error: err.message,
+      });
+    }
+  }
 }
+
+function reconn(reason, Num, res, DisconnectReason) {
+  if (
+    [
+      DisconnectReason.connectionLost,
+      DisconnectReason.connectionClosed,
+      DisconnectReason.restartRequired,
+    ].includes(reason)
+  ) {
+    console.log(`🔄 Reconnecting pairing session for ${Num}...`);
+    setTimeout(() => {
+      connector(Num, res); // ⚠️ Still problematic - res already sent
+    }, 3000);
+  } else {
+    console.log(
+      `⛔ Not reconnecting pairing session for ${Num} (reason: ${reason})`
+    );
+  }
+}
+
 /**
  * Start a bot instance for a given number
  */
