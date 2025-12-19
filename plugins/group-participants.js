@@ -91,7 +91,7 @@ Module({
     return await message.send(cfg.status ? "✅ Welcome enabled for this group" : "❌ Welcome disabled for this group");
   }
 
-  if (lower === "show") {
+  if (lower === "get") {
     return await message.sendreply?.(`Message: ${cfg.message || "(none)"}\nStatus: ${toBool(cfg.status) ? "ON" : "OFF"}`);
   }
 

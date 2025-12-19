@@ -40,7 +40,7 @@ Module({
 `;
     let i = 1;
     for (const p of participants) {
-      tagText += `*${i}.│${getEmoji()} ᩧ𝆺ྀི𝅥*  @${p.id.split("@")[0]}\n`;
+      tagText += `${i}.│${getEmoji()} ᩧ𝆺ྀི𝅥  @${p.id.split("@")[0]}\n`;
       i++;
     }
     tagText += `   *╰────────────❍*
@@ -101,7 +101,7 @@ Module({
     let i = 1;
     for (const admin of admins) {
       const role = admin.admin === "superadmin" ? "🌟" : "👮";
-      tagText += `*${i}.│${getEmoji()} ${role}* @${admin.id.split("@")[0]}\n`;
+      tagText += `${i}.│${getEmoji()} ${role} @${admin.id.split("@")[0]}\n`;
       i++;
     }
     tagText += `   *╰────────────❍*`;
