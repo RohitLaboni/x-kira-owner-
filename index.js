@@ -21,7 +21,6 @@ app.listen(PORT, async () => {
      console.log(`Server running on port ${PORT}`);
   console.log("Initializing databases...");
   await db.init({
-      file: "./data/settings_db.json",
       autosaveInterval: 5000,
       databaseUrl: config.DATABASE_URL || null
     });
