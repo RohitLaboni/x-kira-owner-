@@ -1,11 +1,13 @@
 {
   "globalSettings": {
-    "login": "false"
+    "login": "true",
+    "MENU_INFO": "x-kira,my new bot,https://files.catbox.moe/ky06zl.jpeg,image"
   },
   "groupSettings": {},
   "updateTimes": {
     "global": {
-      "login": "2025-12-22T21:48:04.126Z"
+      "login": "2025-12-22T23:00:58.855Z",
+      "MENU_INFO": "2025-12-22T23:07:19.329Z"
     }
   }
 }

@@ -337,24 +337,9 @@ Module({
   }
 });
 
-Module({
-  command: "play",
-  package: "downloader",
-  description: "YouTube video player",
-})(async (message, match) => {
-  if (!match) return message.send("_need a yt url or song name_");
-  let input = match.trim();
-  try {
-    await handleSongDownload(message.conn, input, message);
-  } catch (err) {
-    console.error("[PLUGIN PLAY] Error:", err?.message || err);
-    await message.send("⚠️ Playback failed. Please try again later.");
-  }
-});
-
 /* ----------------- PLAY (MP3) ----------------- */
 Module({
-  command: "play3",
+  command: "play",
   package: "downloader",
   description:
     "Download YouTube song using multiple APIs (PrivateZia / Zen / Finix)",
@@ -418,10 +403,7 @@ Module({
         contextInfo,
       },
       {
-        quoted: makeGiftQuote(
-          message.pushname || message.pushName,
-          message.sender || message.from
-        ),
+        quoted: makeGiftQuote("sumon dev 🦠", message.bot),
       }
     );
     await message.react("✅");
@@ -435,7 +417,7 @@ Module({
 
 /* ----------------- VIDEO (MP4) ----------------- */
 Module({
-  command: "video3",
+  command: "video2",
   package: "downloader",
   description:
     "Download YouTube video using multiple APIs (PrivateZia / Zen / Finix)",
@@ -484,7 +466,7 @@ Module({
             duration || "unknown"
           }s\n📺 Quality: ${quality || "HD"}\n> *Downloading video...* ⏳`,
         },
-        { quoted: message }
+        { quoted: message.raw }
       );
     }
 
@@ -497,7 +479,7 @@ Module({
         mimetype: "video/mp4",
         caption: `🎬 *${title}*\n*✅ Download Complete!*`,
       },
-      { quoted: message }
+      { quoted: message.raw }
     );
 
     [tempVideo, tempThumb].forEach(safeUnlink);
@@ -507,18 +489,6 @@ Module({
     await message.react("❌");
     return message.send("❌ Something went wrong while downloading the video.");
   }
-});
-
-/* ----------------- SONG (alias for play) ----------------- */
-Module({
-  command: "song2",
-  package: "downloader",
-  description: "Download YouTube song (alias to play)",
-})(async (message, match) => {
-  // simply call the play handler by delegating
-  return Module.get && Module.get("play")
-    ? Module.get("play")(message, match)
-    : message.send("❌ Play module not available.");
 });
 
 /* ----------------- GitClone ----------------- */
@@ -551,7 +521,7 @@ Module({
         mimetype: "application/zip",
         caption: `GitHub: ${username}/${repo}`,
       },
-      { quoted: message }
+      { quoted: message.raw }
     );
     await message.react("✅");
   } catch (err) {
@@ -588,7 +558,7 @@ Module({
         image: { url: icon },
         caption: `\`「 APK DOWNLOADED 」\`\nName: ${name}\nUpdated: ${lastup}\nPackage: ${pkg}\nSize: ${size}\nSending APK...`,
       },
-      { quoted: message }
+      { quoted: message.raw }
     );
     const apkRes = await axios
       .get(dllink, { responseType: "arraybuffer" })
@@ -605,7 +575,7 @@ Module({
         fileName: `${name}.apk`,
         caption: "APK file",
       },
-      { quoted: message }
+      { quoted: message.raw }
     );
     await message.react("✅");
   } catch (err) {
@@ -646,7 +616,7 @@ Module({
             image: { url: post.images[i] },
             caption: i === 0 ? caption : undefined,
           },
-          { quoted: message }
+          { quoted: message.raw }
         );
       }
     } else {
@@ -659,50 +629,6 @@ Module({
     return message.send(
       "❌ Something went wrong while fetching the YouTube post."
     );
-  }
-});
-
-/* ----------------- Ringtone ----------------- */
-Module({
-  command: "ringtone",
-  package: "downloader",
-  description: "Download random ringtone from API",
-})(async (message, match) => {
-  const q = (match || "").trim();
-  if (!q)
-    return message.send(
-      "🎧 Please provide a search term!\nExample: .ringtone Suna Hai"
-    );
-  try {
-    await message.react("⏳");
-    const apiUrl = `https://www.dark-yasiya-api.site/download/ringtone?text=${encodeURIComponent(
-      q
-    )}`;
-    const { data } = await axios.get(apiUrl);
-    if (
-      !data?.status ||
-      !Array.isArray(data?.result) ||
-      data.result.length === 0
-    ) {
-      await message.react("❌");
-      return message.send("❌ No ringtones found.");
-    }
-    const random = data.result[Math.floor(Math.random() * data.result.length)];
-    await message.conn.sendMessage(
-      message.from,
-      {
-        audio: { url: random.dl_link },
-        mimetype: "audio/mpeg",
-        fileName: `${random.title || "Ringtone"}.mp3`,
-        caption: `🎶 ${random.title || "Ringtone"}`,
-      },
-      { quoted: message }
-    );
-    await message.react("✅");
-  } catch (err) {
-    console.error("Ringtone Error:", err);
-    await message.react("❌");
-    return message.send("⚠️ Error fetching ringtone.");
   }
 });
 
@@ -746,13 +672,13 @@ Module({
           mimetype: "video/mp4",
           caption: "Pinterest Video",
         },
-        { quoted: message }
+        { quoted: message.raw }
       );
     } else {
       await message.conn.sendMessage(
         message.from,
         { image: { url: image.url }, caption: "Pinterest Image" },
-        { quoted: message }
+        { quoted: message.raw }
       );
     }
     await message.react("✅");
@@ -788,7 +714,7 @@ Module({
         mimetype: "application/octet-stream",
         caption: `Downloaded from Mega.nz: ${fileName}`,
       },
-      { quoted: message }
+      { quoted: message.raw }
     );
     fs.unlinkSync(savePath);
     await message.react("✅");
@@ -796,92 +722,5 @@ Module({
     console.error("MegaDL Error:", err);
     await message.react("❌");
     return message.send("❌ Failed to download from Mega.nz.");
-  }
-});
-
-/* ----------------- YouTube MP4 (alternate) ----------------- */
-Module({
-  command: "video2",
-  package: "downloader",
-  description: "Download YouTube videos (MP4)",
-})(async (message, match) => {
-  const q = (match || "").trim();
-  if (!q) return message.send("🎬 Please enter a video name or YouTube link!");
-  try {
-    await message.react("⏳");
-    let videoUrl, title, thumb;
-    if (q.includes("youtube.com") || q.includes("youtu.be")) videoUrl = q;
-    else {
-      const { videos } = await yts(q);
-      if (!videos || videos.length === 0)
-        return message.send("❌ No video found!");
-      videoUrl = videos[0].url;
-      title = videos[0].title;
-      thumb = videos[0].thumbnail;
-    }
-    const apiUrl = `https://izumiiiiiiii.dpdns.org/downloader/youtube?url=${encodeURIComponent(
-      videoUrl
-    )}&format=720`;
-    const res = await axios.get(apiUrl, { timeout: 30000 });
-    if (!res.data?.result?.download)
-      return message.send("❌ Failed to fetch video link.");
-    const videoData = res.data.result;
-    await message.conn.sendMessage(
-      message.from,
-      {
-        video: { url: videoData.download },
-        mimetype: "video/mp4",
-        fileName: `${videoData.title || title || "video"}.mp4`,
-        caption: `${videoData.title || title}`,
-      },
-      { quoted: message }
-    );
-    await message.react("✅");
-  } catch (err) {
-    console.error("Video2 Error:", err);
-    await message.react("❌");
-    return message.send("❌ Failed to download video.");
-  }
-});
-
-/* ----------------- Play2 (alternate) ----------------- */
-Module({
-  command: "play2",
-  package: "downloader",
-  description: "Download YouTube music (MP3) alternate API",
-})(async (message, match) => {
-  const q = (match || "").trim();
-  if (!q) return message.send("🎧 Please enter song name!");
-  try {
-    await message.react("⏳");
-    const { videos } = await yts(q);
-    if (!videos || videos.length === 0)
-      return message.send("❌ No results found!");
-    const vid = videos[0];
-    await message.conn.sendMessage(
-      message.from,
-      { image: { url: vid.thumbnail }, caption: `🎧 PLAYING: ${vid.title}` },
-      { quoted: message }
-    );
-    const api = `https://apis-keith.vercel.app/download/dlmp3?url=${encodeURIComponent(
-      vid.url
-    )}`;
-    const res = await axios.get(api, { timeout: 30000 });
-    if (!res.data?.status || !res.data?.result?.data?.downloadUrl)
-      return message.send("❌ Failed to get audio link.");
-    await message.conn.sendMessage(
-      message.from,
-      {
-        audio: { url: res.data.result.data.downloadUrl },
-        mimetype: "audio/mpeg",
-        fileName: `${vid.title}.mp3`,
-      },
-      { quoted: message }
-    );
-    await message.react("✅");
-  } catch (err) {
-    console.error("Play2 Error:", err);
-    await message.react("❌");
-    return message.send("❌ Download failed.");
   }
 });

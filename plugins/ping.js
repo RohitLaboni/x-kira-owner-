@@ -14,7 +14,7 @@ Module({
     },
     message: {
       contactMessage: {
-        displayName: message.pushName7,
+        displayName: "sumon dev ❤️‍🩹",
         vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;a,;;;\nFN:'DEMON'\nitem1.TEL;waid=${
           message.conn.user.id.split("@")[0]
         }:${

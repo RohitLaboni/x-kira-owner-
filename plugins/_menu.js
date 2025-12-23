@@ -4,7 +4,7 @@ const settings = require("../lib/database/settingdb");
 const config = require("../config");
 
 const readMore = String.fromCharCode(8206).repeat(4001);
-const INVISIBLE_MARK = "\u2063"; 
+const INVISIBLE_MARK = "\u2063";
 const runtime = (secs) => {
   const pad = (s) => s.toString().padStart(2, "0");
   const h = Math.floor(secs / 3600);
@@ -15,33 +15,42 @@ const runtime = (secs) => {
 
 global.menuCommandMap = global.menuCommandMap || new Map();
 
-Module({ command: "menu", package: "general", description: "Show all commands or a specific package" })(
-  async (message, match) => {
-    try {
-      const time = new Date().toLocaleTimeString("en-ZA", { timeZone: "Africa/Johannesburg" });
-      const userName = message.pushName || "User";
-      const usedGB = ((os.totalmem() - os.freemem()) / 1073741824).toFixed(2);
-      const totGB = (os.totalmem() / 1073741824).toFixed(2);
-      const ram = `${usedGB} / ${totGB} GB`;
-      const grouped = commands
-        .filter((cmd) => cmd.command && cmd.command !== "undefined")
-        .reduce((acc, cmd) => {
-          if (!acc[cmd.package]) acc[cmd.package] = [];
-          acc[cmd.package].push(cmd.command);
-          return acc;
-        }, {});
-      const workType = settings.getGlobal("WORK_TYPE") ?? config.WORK_TYPE ?? "public";
-      const prefix = settings.getGlobal("prefix") ?? config.prefix ?? ".";
-      const menuInfo = settings.getGlobal("MENU_INFO") ?? config.MENU_INFO ?? "bot,[https://i.postimg.cc/pVZd1X4L/DM-FOR-PAID-PROMOTION-B-o-y-P-F-P-𝐼𝐺-3.webp,photo](https://i.postimg.cc/pVZd1X4L/DM-FOR-PAID-PROMOTION-B-o-y-P-F-P-𝐼𝐺-3.webp,photo)";
-      const [name, media, type, desc] = menuInfo.split(',').map(v => v.trim());
-      const categories = Object.keys(grouped).sort();
-      const flatCmds = [];
-      for (const cat of categories) {
-        const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
-        for (const c of list) flatCmds.push({ package: cat, command: c });
-      }
-      let _cmd_st = "";
-      _cmd_st += `
+Module({
+  command: "menu",
+  package: "general",
+  description: "Show all commands or a specific package",
+})(async (message, match) => {
+  try {
+    const time = new Date().toLocaleTimeString("en-ZA", {
+      timeZone: "Africa/Johannesburg",
+    });
+    const userName = message.pushName || "User";
+    const usedGB = ((os.totalmem() - os.freemem()) / 1073741824).toFixed(2);
+    const totGB = (os.totalmem() / 1073741824).toFixed(2);
+    const ram = `${usedGB} / ${totGB} GB`;
+    const grouped = commands
+      .filter((cmd) => cmd.command && cmd.command !== "undefined")
+      .reduce((acc, cmd) => {
+        if (!acc[cmd.package]) acc[cmd.package] = [];
+        acc[cmd.package].push(cmd.command);
+        return acc;
+      }, {});
+    const workType =
+      settings.getGlobal("WORK_TYPE") ?? config.WORK_TYPE ?? "public";
+    const prefix = settings.getGlobal("prefix") ?? config.prefix ?? ".";
+    const menuInfo =
+      settings.getGlobal("MENU_INFO") ??
+      config.MENU_INFO ??
+      "bot,[https://i.postimg.cc/pVZd1X4L/DM-FOR-PAID-PROMOTION-B-o-y-P-F-P-𝐼𝐺-3.webp,photo](https://i.postimg.cc/pVZd1X4L/DM-FOR-PAID-PROMOTION-B-o-y-P-F-P-𝐼𝐺-3.webp,photo)";
+    const [name, desc, media, type] = menuInfo.split(",").map((v) => v.trim());
+    const categories = Object.keys(grouped).sort();
+    const flatCmds = [];
+    for (const cat of categories) {
+      const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
+      for (const c of list) flatCmds.push({ package: cat, command: c });
+    }
+    let _cmd_st = "";
+    _cmd_st += `
 *╭══〘〘 ${name} 〙〙*
 *┃❍ ʀᴜɴ     :* ${runtime(process.uptime())}
 *┃❍ ᴍᴏᴅᴇ    :* ${workType}
@@ -54,55 +63,71 @@ ${readMore}
 *♡︎•━━━━━━☻︎━━━━━━•♡︎*
 *┃❍ Reply with the number to execute the command.*
 `;
-      if (match && grouped[match.toLowerCase()]) {
-        const pack = match.toLowerCase();
-        _cmd_st += `\n *╭────❒ ${pack.toUpperCase()} ❒⁠⁠⁠⁠*\n`;
-        grouped[pack]
-          .sort((a, b) => a.localeCompare(b))
-          .forEach((cmdName) => {
-            const index = flatCmds.findIndex(x => x.command === cmdName && x.package === pack) + 1;
-            _cmd_st += ` *├◈ ${index} ${cmdName}*\n`;
-          });
+    if (match && grouped[match.toLowerCase()]) {
+      const pack = match.toLowerCase();
+      _cmd_st += `\n *╭────❒ ${pack.toUpperCase()} ❒⁠⁠⁠⁠*\n`;
+      grouped[pack]
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((cmdName) => {
+          const index =
+            flatCmds.findIndex(
+              (x) => x.command === cmdName && x.package === pack
+            ) + 1;
+          _cmd_st += ` *├◈ ${index} ${cmdName}*\n`;
+        });
+      _cmd_st += ` *┕──────────────────❒*\n`;
+    } else {
+      for (const cat of categories) {
+        _cmd_st += `\n *╭────❒ ${cat.toUpperCase()} ❒⁠⁠⁠⁠*\n`;
+        const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
+        for (const cmdName of list) {
+          const index =
+            flatCmds.findIndex(
+              (x) => x.command === cmdName && x.package === cat
+            ) + 1;
+          _cmd_st += ` *├◈ ${index} ${cmdName}*\n`;
+        }
         _cmd_st += ` *┕──────────────────❒*\n`;
-      } else {
-        for (const cat of categories) {
-          _cmd_st += `\n *╭────❒ ${cat.toUpperCase()} ❒⁠⁠⁠⁠*\n`;
-          const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
-          for (const cmdName of list) {
-            const index = flatCmds.findIndex(x => x.command === cmdName && x.package === cat) + 1;
-            _cmd_st += ` *├◈ ${index} ${cmdName}*\n`;
-          }
-          _cmd_st += ` *┕──────────────────❒*\n`;
-        }
-        _cmd_st += `\n${desc}`;
       }
-      _cmd_st += INVISIBLE_MARK;
-
-      let sent;
-      if (type === "image") {
-        sent = await message.conn.sendMessage(message.from, { image: { url: media }, caption: _cmd_st });
-      } else if (type === "video") {
-        sent = await message.conn.sendMessage(message.from, { video: { url: media }, caption: _cmd_st, gifPlayback: false });
-      } else if (type === "gif") {
-        sent = await message.conn.sendMessage(message.from, { video: { url: media }, caption: _cmd_st, gifPlayback: true });
-      } else {
-        sent = await message.conn.sendMessage(message.from, { text: _cmd_st });
-      }
-      try {
-        const sentId = sent?.key?.id;
-        if (sentId) {
-      
-          const names = flatCmds.map(x => x.command);
-          global.menuCommandMap.set(sentId, names);
-          setTimeout(() => global.menuCommandMap.delete(sentId), 10 * 60 * 1000);
-        }
-      } catch (e) { /* ignore storage errors */ }
-
-    } catch (err) {
-      console.error("Menu error:", err);
+      _cmd_st += `\n${desc}`;
     }
+    _cmd_st += INVISIBLE_MARK;
+
+    let sent;
+    if (type === "image") {
+      sent = await message.conn.sendMessage(message.from, {
+        image: { url: media },
+        caption: _cmd_st,
+      });
+    } else if (type === "video") {
+      sent = await message.conn.sendMessage(message.from, {
+        video: { url: media },
+        caption: _cmd_st,
+        gifPlayback: false,
+      });
+    } else if (type === "gif") {
+      sent = await message.conn.sendMessage(message.from, {
+        video: { url: media },
+        caption: _cmd_st,
+        gifPlayback: true,
+      });
+    } else {
+      sent = await message.conn.sendMessage(message.from, { text: _cmd_st });
+    }
+    try {
+      const sentId = sent?.key?.id;
+      if (sentId) {
+        const names = flatCmds.map((x) => x.command);
+        global.menuCommandMap.set(sentId, names);
+        setTimeout(() => global.menuCommandMap.delete(sentId), 10 * 60 * 1000);
+      }
+    } catch (e) {
+      /* ignore storage errors */
+    }
+  } catch (err) {
+    console.error("Menu error:", err);
   }
-);
+});
 
 Module({ on: "text" })(async (message) => {
   try {
@@ -118,19 +143,21 @@ Module({ on: "text" })(async (message) => {
     if (!/^\d+$/.test(numStr)) return;
     const idx = parseInt(numStr, 10);
     if (idx < 1 || idx > names.length) return;
-    const cmdName = names[idx - 1]; 
+    const cmdName = names[idx - 1];
     const args = parts.join(" ");
     const PREFIX = settings.getGlobal("prefix") ?? config.prefix ?? ".";
     message.body = `${PREFIX}${cmdName}${args ? " " + args : ""}`;
     let found = null;
     if (Array.isArray(plugins)) {
       found = plugins.find(
-        (p) => p.command === cmdName || (p.aliases && p.aliases.includes(cmdName))
+        (p) =>
+          p.command === cmdName || (p.aliases && p.aliases.includes(cmdName))
       );
     }
     if (!found && Array.isArray(commands)) {
       found = commands.find(
-        (c) => c.command === cmdName || (c.aliases && c.aliases.includes(cmdName))
+        (c) =>
+          c.command === cmdName || (c.aliases && c.aliases.includes(cmdName))
       );
     }
     if (found) {
@@ -159,18 +186,18 @@ Module({ on: "text" })(async (message) => {
   }
 });
 
-
 Module({
   command: "list",
   package: "general",
-  description: "Show all available commands (with package, description and optional usage)",
+  description:
+    "Show all available commands (with package, description and optional usage)",
 })(async (message) => {
   try {
     let out = [];
     out.push("*📜 Command list*");
     out.push("");
     const grouped = commands
-      .filter((c) => c.command) 
+      .filter((c) => c.command)
       .reduce((acc, c) => {
         const pkg = (c.package || "other").toLowerCase();
         acc[pkg] = acc[pkg] || [];
@@ -208,10 +235,7 @@ Module({
   const time = new Date().toLocaleTimeString("en-ZA", {
     timeZone: "Africa/Johannesburg",
   });
-  const name =
-          settings.getGlobal("BOT_NAME") ??
-          config.BOT_NAME ??
-          "BOT";
+  const name = settings.getGlobal("BOT_NAME") ?? config.BOT_NAME ?? "BOT";
   const ramUsedMB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
   const uptime = process.uptime();
   const hours = Math.floor(uptime / 3600);
@@ -226,9 +250,7 @@ Module({
 *Uptime:* ${hours}h ${minutes}m ${seconds}s
 `;
   const imageUrl =
-    settings.getGlobal("MENU_URL") ||
-    config.MENU_URL ||
-    getRandomPhoto();
+    settings.getGlobal("MENU_URL") || config.MENU_URL || getRandomPhoto();
   await message.send({
     image: { url: imageUrl },
     caption: ctx,
@@ -238,5 +260,3 @@ Module({
     caption: ctx,
   });
 });
-
-

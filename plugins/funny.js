@@ -1,5 +1,5 @@
 const { Module } = require("../lib/plugins");
-const { getBuffer } = require("../lib/functions");
+const { getBuffer } = require("../lib/handier");
 const { fetchGif, gifToVideo } = require("../lib/fetchGif");
 const axios = require("axios");
 const settings = require("../lib/database/settingdb");
