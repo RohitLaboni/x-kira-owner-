@@ -6,11 +6,10 @@ if (fs.existsSync(envPath)) {
 }
 const isTrue = (x) => String(x).toLowerCase() === "true";
 
-module.exports = { //test 
+module.exports = {
+  //test
   // ================= SESSION ================= //
-  SESSION_ID:
-    process.env.SESSION_ID ||
-    "STARK-MD~2BsWFJ7L#HAS1ChTDHfZUN-HQxZatcfkqSQC3bowLKdFEY3RO-IM",
+  SESSION_ID: process.env.SESSION_ID || "𓂃ᷱ᪳𝘅_𝗸𝗶𝗿𝗮_𝐁𓋜𝐓≈jzibue1b^☁️",
   // ================= DATABASE ================= //
   DATABASE_URL: process.env.DATABASE_URL || "",
 
