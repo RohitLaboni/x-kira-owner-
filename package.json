@@ -52,5 +52,13 @@
     "sqlite3": "^5.1.7",
     "yt-search": "latest",
     "yt-streamer": "^6.7.23"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^17.0.0",
+    "prettier": "^3.7.4"
   }
 }

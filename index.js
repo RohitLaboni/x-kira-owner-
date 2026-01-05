@@ -1,5 +1,5 @@
 const express = require("express");
-const { WhatsApp } = require("./lib/index");
+const { connect } = require("./lib/index");
 const config = require("./config.js");
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -31,8 +31,7 @@ app.listen(PORT, async () => {
     console.log("please set SESSION_ID in config.js");
     return;
   }
-    const wa = new WhatsApp('x-kira');
-    await wa.connect();
+     connect();
     console.log(`WhatsApp session '${sessionId}' initialized`);
   } catch (err) {
     console.error("Failed to initialize WhatsApp session:", err?.message || err);
