@@ -6,14 +6,34 @@ const mention = require('./bin/mention');
 Module({on:'text'})(async(message)=>{
   const b=message.body||'' // use ? 
   console.log(b)
-  if(!message.isMentioned) return
+  //if(!message.isMentioned) return
   // example shape
 const m = {
   sender: message.sender, 
   jid: message.from, 
   client: message.conn 
 };
-const text = ""
+const text = `type/audio https://files.catbox.moe/bxvk6r.mp3
+
+{
+  "ptt": false,
+  "mimetype": "audio/mpeg",
+  "waveform": [99,0,99,0,99],
+  "isForwarded": true,
+  "forwardingScore": 5,
+  "contextInfo": {
+    "externalAdReply": {
+      "title": " ▀▄▀▄▀▄ name ▄▀▄▀▄▀ ",
+      "body": "ᴘᴏᴡᴇʀᴇᴅ ʙʏ name",
+      "showAdAttribution": true,
+      "renderLargerThumbnail": true,
+      "mediaType": 1,
+      "thumbnail": "https://files.catbox.moe/sp5hba.jpeg",
+      "mediaUrl": "https://files.catbox.moe/sp5hba.jpeg",
+      "sourceUrl": "https://www.instagram.com/samin_bad_boy?igsh=cjcxanR4bmZyN2lj"
+    }
+  }
+}`;
 await mention(m, text);
 // &sender -> replaced with @<senderNumber> and added to contextInfo.mentionedJid
 })

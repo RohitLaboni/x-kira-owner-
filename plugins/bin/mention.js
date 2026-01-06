@@ -1,230 +1,270 @@
 // lib/mention.js
-const { jidNormalizedUser } = require("@whiskeysockets/baileys");
-const { MediaUrls } = require("./handler");
+function MediaUrls(text) {
+  let array = [];
+  const regexp =
+    /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()'@:%_\+.~#?!&//=]*)/gi;
+  let urls = text.match(regexp);
+  if (urls) {
+    urls.map((url) => {
+      if (
+        ["jpg", "jpeg", "png", "gif", "mp4", "webp", "mp3", "m4a", "ogg", "wav"].includes(
+          url.split(".").pop().toLowerCase()
+        )
+      ) {
+        array.push(url);
+      }
+    });
+    return array.length ? array : false;
+  } else {
+    return false;
+  }
+}
 
-/**
-
-Extract last JSON block safely from text.
-
-Returns { json, textWithoutJson }
-*/
 function extractLastJsonBlock(s = "") {
-    const lastOpen = s.lastIndexOf("{");
-    if (lastOpen === -1) return { json: null, textWithoutJson: s };
-    const maybe = s.slice(lastOpen);
+  for (let i = s.lastIndexOf("{"); i !== -1; i = s.lastIndexOf("{", i - 1)) {
+    const maybe = s.slice(i);
     try {
-        const parsed = JSON.parse(maybe);
-        const textWithoutJson = s.slice(0, lastOpen).trim();
-        return { json: parsed, textWithoutJson };
+      const parsed = JSON.parse(maybe);
+      const textWithoutJson = s.slice(0, i).trim();
+      return { json: parsed, textWithoutJson };
     } catch (e) {
-        return { json: null, textWithoutJson: s };
+      // try earlier {
     }
+  }
+  return { json: null, textWithoutJson: s };
 }
 
-
-/**
-
-Turn plain numbers like @393938 into full JIDs
-
-and replace &sender with the sender number mention.
-*/
 function buildMentionList(text, m) {
-    const mentions = new Set();
-    if (text.includes("&sender")) {
-        const number = m.sender.split("@")[0];
-        text = text.replace(/&sender/g, "@" + number);
-        mentions.add(m.sender);
-    }
-    // @12345 style mentions
-    const atMatches = [...text.matchAll(/@(\d{5,})/g)];
-    for (const mm of atMatches) {
-        const num = mm[1];
-        mentions.add(`${num}@s.whatsapp.net`);
-    }
-    return { text, mentionedJids: Array.from(mentions) };
+  const mentions = new Set();
+  if (text.includes("&sender")) {
+    const number = m.sender.split("@")[0];
+    text = text.replace(/&sender/g, "@" + number);
+    mentions.add(m.sender);
+  }
+  const atMatches = [...text.matchAll(/@(\d{5,})/g)];
+  for (const mm of atMatches) {
+    const num = mm[1];
+    mentions.add(`${num}@s.whatsapp.net`);
+  }
+  return { text, mentionedJids: Array.from(mentions) };
 }
 
+function deepClone(o) {
+  try {
+    return JSON.parse(JSON.stringify(o));
+  } catch {
+    return o;
+  }
+}
 
-/**
+function normalizeExternalAdReply(ear = {}) {
+  const copy = { ...ear };
 
-mention(m, text)
+  // If caller passed a thumbnail URL string (http/https), move it into thumbnailUrl
+  if (typeof copy.thumbnail === "string" && /^https?:\/\//i.test(copy.thumbnail)) {
+    // move to thumbnailUrl and remove thumbnail to avoid protobuf trying to decode it as bytes
+    copy.thumbnailUrl = copy.thumbnail;
+    delete copy.thumbnail;
+  }
 
-(This version always forces isForwarded=false and forwardingScore=0)
-*/
+  // If there's a thumbnailUrl but still a thumbnail key (empty or non-url), remove the thumbnail key
+  if (copy.thumbnail && typeof copy.thumbnail === "string" && !/^data:|^https?:\/\//i.test(copy.thumbnail)) {
+    // if it looks like base64 data (data:...), keep it; otherwise delete to avoid decode errors
+    if (!/^data:/i.test(copy.thumbnail)) delete copy.thumbnail;
+  }
+
+  // If mediaUrl exists and thumbnailUrl not provided but thumbnail field was a URL earlier, we already moved it.
+  // Ensure we don't pass any non-base64 string into fields that expect bytes.
+  return copy;
+}
+
 async function mention(m, text = "") {
-    try {
-        if (!m || !m.client) throw new Error("Missing 'm' (message wrapper) or 'm.client'");
+  try {
+    if (!m || !m.client) throw new Error("Missing 'm' or 'm.client'");
+    const types = ["type/image", "type/video", "type/audio", "type/sticker", "type/gif"];
+    const { json: parsedJson, textWithoutJson } = extractLastJsonBlock(text || "");
+    let msg = (textWithoutJson || text || "").trim();
 
-        const types = ["type/image", "type/video", "type/audio", "type/sticker", "type/gif"];
+    let message = {
+      contextInfo: {
+        mentionedJid: [m.sender],
+        isForwarded: false,
+        forwardingScore: 0,
+      },
+    };
 
-        // extract JSON block
-        const { json: parsedJson, textWithoutJson } = extractLastJsonBlock(text || "");
-        let msg = (textWithoutJson || text || "").trim();
+    if (parsedJson) {
+      // preserve explicit ptt/mimetype/waveform exactly if provided
+      if (Object.prototype.hasOwnProperty.call(parsedJson, "ptt")) message.ptt = parsedJson.ptt;
+      if (Object.prototype.hasOwnProperty.call(parsedJson, "mimetype")) message.mimetype = parsedJson.mimetype;
+      if (parsedJson.waveform) message.waveform = parsedJson.waveform;
 
-        // initial message object
-        let message = {
-            contextInfo: {
-                mentionedJid: [m.sender],
-                // enforced: forwarded flags are always false by design
-                isForwarded: false,
-                forwardingScore: 0,
-            },
-        };
+      // merge contextInfo carefully
+      if (parsedJson.contextInfo) {
+        message.contextInfo = { ...(message.contextInfo || {}), ...parsedJson.contextInfo };
 
-        if (parsedJson) {
-            const jsonClone = { ...parsedJson };
-
-            // map legacy linkPreview -> externalAdReply
-            if (jsonClone.linkPreview) {
-                jsonClone.contextInfo = jsonClone.contextInfo || {};
-                jsonClone.contextInfo.externalAdReply = jsonClone.linkPreview;
-                delete jsonClone.linkPreview;
-            }
-
-            // normalize externalAdReply thumbnail / mediaUrl
-            if (jsonClone.contextInfo && jsonClone.contextInfo.externalAdReply) {
-                const ear = { ...jsonClone.contextInfo.externalAdReply };
-                if (ear.thumbnail && !ear.thumbnailUrl) ear.thumbnailUrl = ear.thumbnail;
-                if (ear.mediaUrl && !ear.thumbnailUrl) ear.thumbnailUrl = ear.mediaUrl;
-                jsonClone.contextInfo.externalAdReply = ear;
-            }
-
-            // Merge safe top-level fields (caption, waveform, ptt, mimetype, etc.)
-            message = { ...message, ...jsonClone };
-
-            // Merge safe contextInfo keys selectively (but DO NOT accept forwarded flags)
-            if (jsonClone.contextInfo) {
-                message.contextInfo = message.contextInfo || {};
-                const safeKeys = ["externalAdReply", "mentionedJid"];
-                for (const key of safeKeys) {
-                    if (jsonClone.contextInfo[key] !== undefined) {
-                        message.contextInfo[key] = jsonClone.contextInfo[key];
-                    }
-                }
-
-                // If user provided mentionedJid array, merge with default  
-                if (Array.isArray(jsonClone.contextInfo.mentionedJid)) {
-                    message.contextInfo.mentionedJid = Array.from(
-                        new Set([...(message.contextInfo.mentionedJid || []), ...jsonClone.contextInfo.mentionedJid])
-                    );
-                }
-
-            }
-
-            // sanitize
-            if (message.contextInfo) {
-                delete message.contextInfo.forwardedNewsletterMessageInfo;
-                // Enforce cleared forwarded flags ALWAYS
-                message.contextInfo.isForwarded = false;
-                message.contextInfo.forwardingScore = 0;
-            }
+        // Normalize externalAdReply to avoid passing URLs into binary fields
+        if (message.contextInfo.externalAdReply) {
+          message.contextInfo.externalAdReply = normalizeExternalAdReply(message.contextInfo.externalAdReply);
         }
 
-        // Determine message type token
-        let type = "text";
-        for (const t of types) {
-            if (msg.includes(t)) {
-                type = t.replace("type/", "");
-                break;
-            }
+        // If mentionedJid array provided, merge
+        if (Array.isArray(parsedJson.contextInfo.mentionedJid)) {
+          message.contextInfo.mentionedJid = Array.from(
+            new Set([...(message.contextInfo.mentionedJid || []), ...parsedJson.contextInfo.mentionedJid])
+          );
         }
+      }
 
-        // Replace mentions & build final mentionedJids
-        const { text: withMentionsReplaced, mentionedJids } = buildMentionList(msg, m);
-        msg = withMentionsReplaced;
-
-        // Merge mentionedJids (from detection or JSON)
-        if (message.contextInfo?.mentionedJid && Array.isArray(message.contextInfo.mentionedJid)) {
-            message.contextInfo.mentionedJid = Array.from(new Set([...message.contextInfo.mentionedJid, ...mentionedJids]));
-        } else if (mentionedJids.length) {
-            message.contextInfo = message.contextInfo || {};
-            message.contextInfo.mentionedJid = mentionedJids;
-        }
-
-        // Get media URLs
-        let URLS = MediaUrls(msg || "");
-
-        // Media flow
-        if (type !== "text" && URLS && URLS.length > 0) {
-            for (const url of URLS) msg = msg.replace(url, "");
-            msg = msg.replace("type/", "").replace(type, "").replace(/,/g, "").trim();
-
-            const URL = URLS[Math.floor(Math.random() * URLS.length)];
-            if (msg) message.caption = msg;
-
-            switch (type) {
-                case "image":
-                    message.image = { url: URL };
-                    if (!message.mimetype) message.mimetype = "image/jpeg";
-                    break;
-                case "video":
-                    message.video = { url: URL };
-                    if (!message.mimetype) message.mimetype = "video/mp4";
-                    break;
-                case "audio":
-                    message.audio = { url: URL };
-                    if (!message.mimetype) message.mimetype = "audio/mpeg";
-                    if (typeof message.ptt === "undefined") message.ptt = true; // default voice-note style
-                    break;
-                case "sticker":
-                    message.sticker = { url: URL };
-                    message.mimetype = message.mimetype || "image/webp";
-                    delete message.caption;
-                    // keep contextInfo only if explicitly provided (but forwarded flags are still cleared)
-                    if (!parsedJson?.contextInfo) delete message.contextInfo;
-                    break;
-                case "gif":
-                    message.video = { url: URL };
-                    message.gifPlayback = true;
-                    if (!message.mimetype) message.mimetype = "video/mp4";
-                    break;
-                default:
-                    throw new Error("Unknown media type: " + type);
-            }
-
-            // ensure forward property removed
-            delete message.forward;
-            // enforce forwarded flags remain cleared
-            if (message.contextInfo) {
-                message.contextInfo.isForwarded = false;
-                message.contextInfo.forwardingScore = 0;
-            }
-            return await m.client.sendMessage(m.jid, message);
-        }
-
-        // Text flow
-        if (!message.text) message.text = msg || message.caption || "Hello!";
-        if (message.text.includes("@") && (!message.contextInfo || !message.contextInfo.mentionedJid)) {
-            const { mentionedJids: auto } = buildMentionList(message.text, m);
-            if (auto.length) {
-                message.contextInfo = message.contextInfo || {};
-                message.contextInfo.mentionedJid = Array.from(new Set([...(message.contextInfo.mentionedJid || []), ...auto]));
-            }
-        }
-
-        delete message.forward;
-        // enforce forwarded flags remain cleared
-        if (message.contextInfo) {
-            message.contextInfo.isForwarded = false;
-            message.contextInfo.forwardingScore = 0;
-        }
-        return await m.client.sendMessage(m.jid, message);
-    } catch (error) {
-        console.error("Mention function error:", error);
-        // Fallback to simple text message
-        try {
-            await m.client.sendMessage(m.jid, {
-                text: (text || "").substring(0, 300),
-                contextInfo: {
-                    mentionedJid: [m.sender],
-                    isForwarded: false,
-                },
-            });
-        } catch (fallbackError) {
-            console.error("Fallback message failed:", fallbackError);
-        }
+      // Also normalize top-level externalAdReply if present (rare)
+      if (parsedJson.externalAdReply) {
+        parsedJson.externalAdReply = normalizeExternalAdReply(parsedJson.externalAdReply);
+        // merge into contextInfo.externalAdReply if needed
+        message.contextInfo = message.contextInfo || {};
+        message.contextInfo.externalAdReply = { ...(message.contextInfo.externalAdReply || {}), ...parsedJson.externalAdReply };
+      }
     }
-}
 
+    // enforce forwarding flags cleared
+    if (message.contextInfo) {
+      delete message.contextInfo.forwardedNewsletterMessageInfo;
+      message.contextInfo.isForwarded = false;
+      message.contextInfo.forwardingScore = 0;
+    }
+
+    // detect type token
+    let type = "text";
+    for (const t of types) {
+      if (msg.includes(t)) {
+        type = t.replace("type/", "");
+        break;
+      }
+    }
+
+    const { text: withMentionsReplaced, mentionedJids } = buildMentionList(msg, m);
+    msg = withMentionsReplaced;
+    if (message.contextInfo?.mentionedJid && Array.isArray(message.contextInfo.mentionedJid)) {
+      message.contextInfo.mentionedJid = Array.from(new Set([...message.contextInfo.mentionedJid, ...mentionedJids]));
+    } else if (mentionedJids.length) {
+      message.contextInfo = message.contextInfo || {};
+      message.contextInfo.mentionedJid = mentionedJids;
+    }
+
+    let URLS = MediaUrls(msg || "");
+
+    const pickUrlForType = (desiredType) => {
+      if (!URLS) URLS = false;
+      if (URLS && URLS.length) {
+        const audioExt = /\.(mp3|m4a|ogg|opus|wav|aac)(\?|$)/i;
+        const videoExt = /\.(mp4|mkv|mov|webm)(\?|$)/i;
+        const imageExt = /\.(jpe?g|png|gif|webp|bmp)(\?|$)/i;
+        let filtered = [];
+        if (desiredType === "audio") filtered = URLS.filter(u => audioExt.test(u));
+        else if (desiredType === "video") filtered = URLS.filter(u => videoExt.test(u));
+        else if (desiredType === "image" || desiredType === "sticker") filtered = URLS.filter(u => imageExt.test(u));
+        if (filtered.length) return filtered[Math.floor(Math.random() * filtered.length)];
+      }
+      const earMedia = parsedJson?.contextInfo?.externalAdReply?.mediaUrl
+                    || parsedJson?.contextInfo?.externalAdReply?.thumbnailUrl
+                    || parsedJson?.mediaUrl;
+      if (earMedia) return earMedia;
+      if (URLS && URLS.length) return URLS[Math.floor(Math.random() * URLS.length)];
+      return null;
+    };
+
+    if (type !== "text") {
+      if (URLS && URLS.length) for (const u of URLS) msg = msg.replace(u, "");
+      msg = msg.replace("type/", "").replace(type, "").replace(/,/g, "").trim();
+
+      const URL = pickUrlForType(type);
+      if (msg) message.caption = msg;
+
+      const attachMediaMeta = (mediaObj = {}) => {
+        if (message.mimetype) mediaObj.mimetype = message.mimetype;
+        if (Object.prototype.hasOwnProperty.call(message, "ptt")) mediaObj.ptt = message.ptt;
+        if (message.waveform) mediaObj.waveform = message.waveform;
+        if (message.contextInfo) mediaObj.contextInfo = deepClone(message.contextInfo);
+        return mediaObj;
+      };
+
+      switch (type) {
+        case "image":
+          if (!URL) throw new Error("No image URL found");
+          message.image = attachMediaMeta({ url: URL });
+          message.mimetype = message.mimetype || "image/jpeg";
+          break;
+        case "video":
+          if (!URL) throw new Error("No video URL found");
+          message.video = attachMediaMeta({ url: URL });
+          message.mimetype = message.mimetype || "video/mp4";
+          break;
+        case "audio":
+          if (!Object.prototype.hasOwnProperty.call(message, "ptt")) message.ptt = true;
+          message.mimetype = message.mimetype || "audio/mpeg";
+          if (!URL) throw new Error("No audio URL found");
+          message.audio = attachMediaMeta({ url: URL });
+          break;
+        case "sticker":
+          if (!URL) throw new Error("No sticker URL found");
+          message.sticker = attachMediaMeta({ url: URL });
+          message.mimetype = message.mimetype || "image/webp";
+          delete message.caption;
+          if (!parsedJson?.contextInfo) delete message.contextInfo;
+          break;
+        case "gif":
+          if (!URL) throw new Error("No gif URL found");
+          message.video = attachMediaMeta({ url: URL });
+          message.gifPlayback = true;
+          message.mimetype = message.mimetype || "video/mp4";
+          break;
+        default:
+          throw new Error("Unknown media type: " + type);
+      }
+
+      delete message.forward;
+      if (message.contextInfo) {
+        message.contextInfo.isForwarded = false;
+        message.contextInfo.forwardingScore = 0;
+      }
+
+      // DEBUG
+      try { console.log("[mention] final message object being sent:", JSON.stringify(message, null, 2)); } catch (e) {}
+
+      return await m.client.sendMessage(m.jid, message);
+    }
+
+    // Text flow
+    if (!message.text) message.text = msg || message.caption || "Hello!";
+    if (message.text.includes("@") && (!message.contextInfo || !message.contextInfo.mentionedJid)) {
+      const { mentionedJids: auto } = buildMentionList(message.text, m);
+      if (auto.length) {
+        message.contextInfo = message.contextInfo || {};
+        message.contextInfo.mentionedJid = Array.from(new Set([...(message.contextInfo.mentionedJid || []), ...auto]));
+      }
+    }
+
+    delete message.forward;
+    if (message.contextInfo) {
+      message.contextInfo.isForwarded = false;
+      message.contextInfo.forwardingScore = 0;
+    }
+
+    try { console.log("[mention] final text message object:", JSON.stringify(message, null, 2)); } catch (e) {}
+    return await m.client.sendMessage(m.jid, message);
+  } catch (error) {
+    console.error("Mention function error:", error);
+    try {
+      await m.client.sendMessage(m.jid, {
+        text: (text || "").substring(0, 300),
+        contextInfo: {
+          mentionedJid: [m.sender],
+          isForwarded: false,
+        },
+      });
+    } catch (fallbackError) {
+      console.error("Fallback message failed:", fallbackError);
+    }
+  }
+}
 
 module.exports = mention;
