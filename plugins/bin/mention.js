@@ -93,6 +93,34 @@ async function mention(m, text = "") {
       },
     };
 
+    // Helper: apply forwarding flags based on parsedJson if provided, otherwise default to false/0
+    const setForwardingFlags = (ctxInfo) => {
+      if (!ctxInfo) return;
+      // always remove newsletter info (we don't want that)
+      delete ctxInfo.forwardedNewsletterMessageInfo;
+
+      // Prefer value from parsedJson.contextInfo, then parsedJson top-level
+      const providedIsForwarded =
+        parsedJson && parsedJson.contextInfo && typeof parsedJson.contextInfo.isForwarded !== "undefined"
+          ? parsedJson.contextInfo.isForwarded
+          : parsedJson && typeof parsedJson.isForwarded !== "undefined"
+          ? parsedJson.isForwarded
+          : undefined;
+
+      const providedScore =
+        parsedJson && parsedJson.contextInfo && typeof parsedJson.contextInfo.forwardingScore !== "undefined"
+          ? parsedJson.contextInfo.forwardingScore
+          : parsedJson && typeof parsedJson.forwardingScore !== "undefined"
+          ? parsedJson.forwardingScore
+          : undefined;
+
+      if (typeof providedIsForwarded !== "undefined") ctxInfo.isForwarded = providedIsForwarded;
+      else ctxInfo.isForwarded = false;
+
+      if (typeof providedScore !== "undefined") ctxInfo.forwardingScore = providedScore;
+      else ctxInfo.forwardingScore = 0;
+    };
+
     if (parsedJson) {
       // preserve explicit ptt/mimetype/waveform exactly if provided
       if (Object.prototype.hasOwnProperty.call(parsedJson, "ptt")) message.ptt = parsedJson.ptt;
@@ -123,13 +151,12 @@ async function mention(m, text = "") {
         message.contextInfo = message.contextInfo || {};
         message.contextInfo.externalAdReply = { ...(message.contextInfo.externalAdReply || {}), ...parsedJson.externalAdReply };
       }
-    }
 
-    // enforce forwarding flags cleared
-    if (message.contextInfo) {
-      delete message.contextInfo.forwardedNewsletterMessageInfo;
-      message.contextInfo.isForwarded = false;
-      message.contextInfo.forwardingScore = 0;
+      // Apply forwarding flags now (will respect parsedJson.isForwarded or parsedJson.contextInfo.isForwarded)
+      setForwardingFlags(message.contextInfo);
+    } else {
+      // no parsedJson — ensure defaults are applied
+      setForwardingFlags(message.contextInfo);
     }
 
     // detect type token
@@ -222,10 +249,8 @@ async function mention(m, text = "") {
       }
 
       delete message.forward;
-      if (message.contextInfo) {
-        message.contextInfo.isForwarded = false;
-        message.contextInfo.forwardingScore = 0;
-      }
+      // respect provided forwarding flags (re-apply just in case)
+      if (message.contextInfo) setForwardingFlags(message.contextInfo);
 
       // DEBUG
       try { console.log("[mention] final message object being sent:", JSON.stringify(message, null, 2)); } catch (e) {}
@@ -244,10 +269,8 @@ async function mention(m, text = "") {
     }
 
     delete message.forward;
-    if (message.contextInfo) {
-      message.contextInfo.isForwarded = false;
-      message.contextInfo.forwardingScore = 0;
-    }
+    // re-apply/ensure correct forwarding flags for text messages as well
+    if (message.contextInfo) setForwardingFlags(message.contextInfo);
 
     try { console.log("[mention] final text message object:", JSON.stringify(message, null, 2)); } catch (e) {}
     return await m.client.sendMessage(m.jid, message);
