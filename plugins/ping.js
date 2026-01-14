@@ -14,7 +14,7 @@ Module({
     },
     message: {
       contactMessage: {
-        displayName: "1   ᴍ ввz ❤️‍🩹",
+        displayName: "Bittu dev ❤️‍🩹",
         vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;a,;;;\nFN:'DEMON'\nitem1.TEL;waid=${
           message.conn.user.id.split("@")[0]
         }:${
@@ -100,7 +100,7 @@ Module({
     message.from,
     {
       text: `*${emoji}⧫𝔓⦿𝖓𝖌 ${latency} 𝖒ˢ*`,
-      y} 𝖒ˢ*⎯͢⎯⃝ᰔᩚBITTU_ʙʙᴢᥫ᭡💋`,fo: {
+      contextInfo: {
         mentionedJid: [message.sender],
         forwardingScore: 5,
         isForwarded: false,
