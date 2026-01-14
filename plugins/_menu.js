@@ -61,7 +61,7 @@ Module({
 *╰═════════════════⊷*
 ${readMore}
 *♡︎•━━━━━━☻︎━━━━━━•♡︎*
-*┃❍ Reply with the number to execute the command.*
+*┃❍ 1   ᴍ Reply with the number to execute the command.*
 `;
     if (match && grouped[match.toLowerCase()]) {
       const pack = match.toLowerCase();
